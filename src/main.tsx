@@ -18,6 +18,11 @@ import { routeTree } from './routeTree.gen'
 // Styles
 import './styles/index.css'
 
+// VITE_API_BASE_URL
+// const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+// console.log(VITE_API_BASE_URL, 'VITE_API_BASE_URL')
+
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

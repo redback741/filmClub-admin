@@ -9,8 +9,23 @@ import { TasksPrimaryButtons } from './components/tasks-primary-buttons'
 import { TasksProvider } from './components/tasks-provider'
 import { TasksTable } from './components/tasks-table'
 import { tasks } from './data/tasks'
+import { getActivities, type Activity } from '@/api/activies'
+import { useQuery } from '@tanstack/react-query'
+
+
 
 export function Tasks() {
+  // 使用 React Query 进行数据请求，避免开发模式下 StrictMode 导致 useEffect 调用两次
+  const { data: _activities = [] } = useQuery<Activity[]>({
+    queryKey: ['activities'],
+    queryFn: async () => {
+      const res = await getActivities({})
+      return res.code === 200 ? res.data ?? [] : []
+    },
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: import.meta.env.PROD,
+  })
+
   return (
     <TasksProvider>
       <Header fixed>
