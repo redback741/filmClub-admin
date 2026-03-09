@@ -8,19 +8,20 @@ import { TasksDialogs } from './components/tasks-dialogs'
 import { TasksPrimaryButtons } from './components/tasks-primary-buttons'
 import { TasksProvider } from './components/tasks-provider'
 import { TasksTable } from './components/tasks-table'
-import { tasks } from './data/tasks'
-import { getActivities, type Activity } from '@/api/activies'
+// import { tasks } from './data/tasks'
+import { getActivities } from '@/api/activies'
 import { useQuery } from '@tanstack/react-query'
 
 
 
 export function Tasks() {
   // 使用 React Query 进行数据请求，避免开发模式下 StrictMode 导致 useEffect 调用两次
-  const { data: _activities = [] } = useQuery<Activity[]>({
+  const { data: _activities = [] } = useQuery<unknown[]>({
     queryKey: ['activities'],
     queryFn: async () => {
       const res = await getActivities({})
-      return res.code === 200 ? res.data ?? [] : []
+      const list = res.data
+      return list.length ? list : []
     },
     staleTime: 30 * 1000,
     refetchOnWindowFocus: import.meta.env.PROD,
@@ -40,14 +41,14 @@ export function Tasks() {
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
         <div className='flex flex-wrap items-end justify-between gap-2'>
           <div>
-            <h2 className='text-2xl font-bold tracking-tight'>Tasks</h2>
+            <h2 className='text-2xl font-bold tracking-tight'>活动列表</h2>
             <p className='text-muted-foreground'>
-              Here&apos;s a list of your tasks for this month!
+              {/* Here&apos;s a list of your tasks for this month! */}
             </p>
           </div>
           <TasksPrimaryButtons />
         </div>
-        <TasksTable data={tasks} />
+        <TasksTable data={_activities} />
       </Main>
 
       <TasksDialogs />

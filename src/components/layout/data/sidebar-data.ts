@@ -50,21 +50,21 @@ export const sidebarData: SidebarData = {
           icon: LayoutDashboard,
         },
         {
-          title: '任务管理',
+          title: '活动管理',
           url: '/tasks',
           icon: ListTodo,
         },
-        {
-          title: '应用管理',
-          url: '/apps',
-          icon: Package,
-        },
-        {
-          title: '聊天管理',
-          url: '/chats',
-          badge: '3',
-          icon: MessagesSquare,
-        },
+        // {
+        //   title: '应用管理',
+        //   url: '/apps',
+        //   icon: Package,
+        // },
+        // {
+        //   title: '聊天管理',
+        //   url: '/chats',
+        //   badge: '3',
+        //   icon: MessagesSquare,
+        // },
         {
           title: '用户管理',
           url: '/users',

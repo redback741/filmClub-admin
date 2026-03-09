@@ -14,5 +14,5 @@ export type ApiResponse<T> = {
 }
 
 export async function getActivities(params: Record<string, unknown>) {
-  return http.get<ApiResponse<Activity[]>>('/activity/list', { params })
+  return http.get<ApiResponse<any>>('/activity/list', { params })
 }
