@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cn, getPageNumbers } from '@/lib/utils'
 import {
   Table,
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { type Task, taskSchema, ActivityStatus } from '../data/schema'
+import { useTasks } from './tasks-provider'
 
 type DataTableProps = {
   data: unknown[]
@@ -31,20 +32,49 @@ function formatValue(key: string, value: unknown): string {
       return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString()
     }
   }
+  if (key === 'status') {
+    if (typeof value === 'number') return statusText[value] ?? String(value)
+    if (typeof value === 'string') {
+      const n = Number(value)
+      if (Number.isFinite(n)) return statusText[n] ?? String(value)
+      return value
+    }
+    return String(value)
+  }
+  if (key === 'isDeleted') {
+    if (typeof value === 'boolean') return value ? '是' : '否'
+    if (typeof value === 'number') return value ? '是' : '否'
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase()
+      if (v === 'true' || v === '1') return '是'
+      if (v === 'false' || v === '0') return '否'
+    }
+    return String(value)
+  }
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   if (typeof value === 'number') return String(value)
   return String(value)
 }
 
 const statusText: Record<number, string> = {
-  [ActivityStatus.PENDING]: 'backlog',
-  [ActivityStatus.PUBLISHED]: 'in progress',
-  [ActivityStatus.ENDED]: 'done',
+  [ActivityStatus.PENDING]: '待发布',
+  [ActivityStatus.PUBLISHED]: '报名中',
+  [ActivityStatus.ENDED]: '已结束',
 }
 
 export function TasksTable({ data }: DataTableProps) {
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(10)
+  const { setOpen, setCurrentRow } = useTasks()
+
+  const getStatusCode = (value: unknown) => {
+    if (typeof value === 'number') return value
+    if (typeof value === 'string') {
+      const n = Number(value)
+      return Number.isFinite(n) ? n : null
+    }
+    return null
+  }
 
   const rows = useMemo<Task[]>(() => {
     return data.map((item) => {
@@ -66,40 +96,32 @@ export function TasksTable({ data }: DataTableProps) {
             ? src.name
             : ''
 
-      let status = ''
       const rawStatus = src.status
-      if (typeof rawStatus === 'number') {
-        status = statusText[rawStatus] ?? String(rawStatus)
-      } else if (typeof rawStatus === 'string') {
-        status = rawStatus
-      }
+      const statusCode = getStatusCode(rawStatus)
 
       return {
         ...(src as object),
         id,
         title,
-        status,
+        status: statusCode ?? rawStatus,
       } as unknown as Task
     })
   }, [data])
 
   const totalRows = rows.length
   const pageCount = Math.max(1, Math.ceil(totalRows / pageSize))
-  const currentPage = Math.min(pageCount, Math.max(1, pageIndex + 1))
+  const pageIndexClamped = Math.min(Math.max(0, pageIndex), pageCount - 1)
+  const currentPage = Math.min(pageCount, Math.max(1, pageIndexClamped + 1))
   const pageNumbers = useMemo(
     () => getPageNumbers(currentPage, pageCount),
     [currentPage, pageCount]
   )
 
-  useEffect(() => {
-    if (pageIndex > pageCount - 1) setPageIndex(0)
-  }, [pageCount, pageIndex])
-
   const pageRows = useMemo(() => {
-    const start = pageIndex * pageSize
+    const start = pageIndexClamped * pageSize
     const end = start + pageSize
     return rows.slice(start, end)
-  }, [pageIndex, pageSize, rows])
+  }, [pageIndexClamped, pageSize, rows])
 
   const columns: { key: keyof Task | string; label: string }[] = [
     { key: 'id', label: '编号' },
@@ -128,6 +150,7 @@ export function TasksTable({ data }: DataTableProps) {
     { key: 'currentRegistrations', label: '当前报名人数' },
     { key: 'isDeleted', label: '是否删除' },
     { key: 'status', label: '状态' },
+    { key: '__actions__', label: '操作' },
   ]
 
   return (
@@ -137,7 +160,12 @@ export function TasksTable({ data }: DataTableProps) {
           <TableHeader>
             <TableRow>
               {columns.map((c) => (
-                <TableHead key={String(c.key)}>{c.label}</TableHead>
+                <TableHead
+                  key={String(c.key)}
+                  className={c.key === '__actions__' ? 'text-right' : undefined}
+                >
+                  {c.label}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -146,6 +174,63 @@ export function TasksTable({ data }: DataTableProps) {
               pageRows.map((row, idx) => (
                 <TableRow key={row.id || idx}>
                   {columns.map((c) => {
+                    if (c.key === '__actions__') {
+                      const isDeleted = !!row.isDeleted
+                      const currentStatusCode = getStatusCode(
+                        (row as Record<string, unknown>).status
+                      )
+                      const nextStatus =
+                        currentStatusCode === ActivityStatus.PENDING
+                          ? ActivityStatus.PUBLISHED
+                          : currentStatusCode === ActivityStatus.PUBLISHED
+                            ? ActivityStatus.ENDED
+                            : null
+
+                      return (
+                        <TableCell
+                          key={String(c.key)}
+                          className='whitespace-nowrap text-right'
+                        >
+                          <div className='flex justify-end gap-2'>
+                            {!isDeleted && (
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() => {
+                                  setCurrentRow(row)
+                                  setOpen('update')
+                                }}
+                              >
+                                修改
+                              </Button>
+                            )}
+                            {!isDeleted && (
+                              <Button
+                                size='sm'
+                                variant='destructive'
+                                onClick={() => {
+                                  setCurrentRow(row)
+                                  setOpen('delete')
+                                }}
+                              >
+                                删除
+                              </Button>
+                            )}
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              disabled={isDeleted || nextStatus == null}
+                              onClick={() => {
+                                setCurrentRow(row)
+                                setOpen('status')
+                              }}
+                            >
+                              {formatValue('status', currentStatusCode ?? row.status)}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )
+                    }
                     const v = (row as Record<string, unknown>)[c.key as string]
                     return (
                       <TableCell key={String(c.key)}>
@@ -197,7 +282,7 @@ export function TasksTable({ data }: DataTableProps) {
             variant='outline'
             className='h-8 px-3'
             onClick={() => setPageIndex(0)}
-            disabled={pageIndex <= 0}
+            disabled={pageIndexClamped <= 0}
           >
             首页
           </Button>
@@ -205,7 +290,7 @@ export function TasksTable({ data }: DataTableProps) {
             variant='outline'
             className='h-8 px-3'
             onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-            disabled={pageIndex <= 0}
+            disabled={pageIndexClamped <= 0}
           >
             上一页
           </Button>
@@ -238,7 +323,7 @@ export function TasksTable({ data }: DataTableProps) {
             variant='outline'
             className='h-8 px-3'
             onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={pageIndex >= pageCount - 1}
+            disabled={pageIndexClamped >= pageCount - 1}
           >
             下一页
           </Button>
@@ -246,7 +331,7 @@ export function TasksTable({ data }: DataTableProps) {
             variant='outline'
             className='h-8 px-3'
             onClick={() => setPageIndex(pageCount - 1)}
-            disabled={pageIndex >= pageCount - 1}
+            disabled={pageIndexClamped >= pageCount - 1}
           >
             末页
           </Button>

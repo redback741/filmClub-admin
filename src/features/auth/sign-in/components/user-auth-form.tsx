@@ -5,9 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
-import { IconFacebook, IconGithub } from '@/assets/brand-icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { sleep, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -59,7 +58,6 @@ export function UserAuthForm({
       loading: 'Signing in...',
       success: (res) => {
         setIsLoading(false)
-        console.log(res)
         // Mock successful authentication with expiry computed at success time
         const userInfo = {
           email: res.data?.userInfo?.email,

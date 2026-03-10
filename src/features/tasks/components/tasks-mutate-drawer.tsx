@@ -1,6 +1,7 @@
-import { z } from 'zod'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { createActivity, type Activity } from '@/api/activies'
 import { showSubmittedData } from '@/lib/show-submitted-data'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,18 +13,17 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { SelectDropdown } from '@/components/select-dropdown'
-import { type Task } from '../data/schema'
+import { type Task, ActivityType, HallType } from '../data/schema'
 
 type TaskMutateDrawerProps = {
   open: boolean
@@ -31,13 +31,27 @@ type TaskMutateDrawerProps = {
   currentRow?: Task
 }
 
-const formSchema = z.object({
-  title: z.string().min(1, 'Title is required.'),
-  status: z.string().min(1, 'Please select a status.'),
-  label: z.string().min(1, 'Please select a label.'),
-  priority: z.string().min(1, 'Please choose a priority.'),
-})
-type TaskForm = z.infer<typeof formSchema>
+type ActivityForm = {
+  name: string
+  type: string
+  hallType: string
+  startTime: Date
+  screeningTime: Date
+  city: string
+  address: string
+  movieName: string
+  posterUrl?: string
+  price: number
+  recruiterName: string
+  recruiterContact?: string
+  benefitFree?: string
+  benefitLottery?: string
+  registrationLink?: string
+  feedbackLink?: string
+  maxRegistrations: number
+  currentRegistrations: number
+  guests?: string
+}
 
 export function TasksMutateDrawer({
   open,
@@ -45,168 +59,468 @@ export function TasksMutateDrawer({
   currentRow,
 }: TaskMutateDrawerProps) {
   const isUpdate = !!currentRow
+  const queryClient = useQueryClient()
 
-  const form = useForm<TaskForm>({
-    resolver: zodResolver(formSchema),
-    defaultValues: currentRow ?? {
-      title: '',
-      status: '',
-      label: '',
-      priority: '',
+  const coerceEnumNumber = (value: string, fallback: number) => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+  }
+
+  const toOptionalString = (value: string | undefined) => {
+    const v = value?.trim()
+    return v ? v : undefined
+  }
+
+  const form = useForm<ActivityForm>({
+    defaultValues: {
+      name: currentRow?.name ?? '',
+      type:
+        (typeof currentRow?.type === 'number'
+          ? String(currentRow.type)
+          : (currentRow?.type as string)) ?? `${ActivityType.KOUBEI}`,
+      hallType:
+        (typeof currentRow?.hallType === 'number'
+          ? String(currentRow.hallType)
+          : (currentRow?.hallType as string)) ?? `${HallType.STANDARD}`,
+      startTime:
+        (typeof currentRow?.startTime === 'string'
+          ? new Date(currentRow.startTime)
+          : (currentRow?.startTime as Date)) || new Date(),
+      screeningTime:
+        (typeof currentRow?.screeningTime === 'string'
+          ? new Date(currentRow.screeningTime)
+          : (currentRow?.screeningTime as Date)) || new Date(),
+      city: currentRow?.city ?? '',
+      address: currentRow?.address ?? '',
+      movieName: currentRow?.movieName ?? '',
+      posterUrl: currentRow?.posterUrl ?? '',
+      price:
+        typeof currentRow?.price === 'number'
+          ? currentRow.price
+          : Number(currentRow?.price ?? 0),
+      recruiterName: currentRow?.recruiterName ?? '',
+      recruiterContact: currentRow?.recruiterContact ?? '',
+      benefitFree: currentRow?.benefitFree ?? '',
+      benefitLottery: currentRow?.benefitLottery ?? '',
+      registrationLink: currentRow?.registrationLink ?? '',
+      feedbackLink: currentRow?.feedbackLink ?? '',
+      maxRegistrations:
+        typeof currentRow?.maxRegistrations === 'number'
+          ? currentRow.maxRegistrations
+          : Number(currentRow?.maxRegistrations ?? 0),
+      currentRegistrations:
+        typeof currentRow?.currentRegistrations === 'number'
+          ? currentRow.currentRegistrations
+          : Number(currentRow?.currentRegistrations ?? 0),
+      guests:
+        (currentRow as unknown as { guests?: string } | undefined)?.guests ?? '',
     },
   })
 
-  const onSubmit = (data: TaskForm) => {
-    // do something with the form data
-    onOpenChange(false)
-    form.reset()
-    showSubmittedData(data)
+  const onSubmit = (data: ActivityForm) => {
+    if (isUpdate) {
+      onOpenChange(false)
+      form.reset()
+      showSubmittedData(data, '已更新活动：')
+      return
+    }
+
+    const payload: Activity = {
+      name: data.name,
+      type: coerceEnumNumber(data.type, ActivityType.KOUBEI),
+      hallType: coerceEnumNumber(data.hallType, HallType.STANDARD),
+      startTime: data.startTime,
+      screeningTime: data.screeningTime,
+      city: data.city,
+      address: data.address,
+      movieName: data.movieName,
+      posterUrl: toOptionalString(data.posterUrl),
+      price: data.price,
+      recruiterName: data.recruiterName,
+      recruiterContact: toOptionalString(data.recruiterContact),
+      benefitFree: toOptionalString(data.benefitFree),
+      benefitLottery: toOptionalString(data.benefitLottery),
+      registrationLink: toOptionalString(data.registrationLink),
+      feedbackLink: toOptionalString(data.feedbackLink),
+      maxRegistrations: data.maxRegistrations,
+      currentRegistrations: data.currentRegistrations,
+      guests: toOptionalString(data.guests),
+    }
+
+    toast.promise(createActivity(payload), {
+      loading: '创建中...',
+      success: (res) => {
+        if (res.code === 200 || res.code === 201) {
+          queryClient.invalidateQueries({ queryKey: ['activities'] })
+          onOpenChange(false)
+          form.reset()
+          showSubmittedData(data, '已创建活动：')
+          return '创建成功'
+        }
+        return '创建失败'
+      },
+      error: () => {
+        return '创建失败'
+      },
+    })
   }
 
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(v) => {
         onOpenChange(v)
         form.reset()
       }}
     >
-      <SheetContent className='flex flex-col'>
-        <SheetHeader className='text-start'>
-          <SheetTitle>{isUpdate ? 'Update' : 'Create'} Task</SheetTitle>
-          <SheetDescription>
-            {isUpdate
-              ? 'Update the task by providing necessary info.'
-              : 'Add a new task by providing necessary info.'}
-            Click save when you&apos;re done.
-          </SheetDescription>
-        </SheetHeader>
+      <DialogContent className='flex max-h-[80vh] flex-col sm:max-w-4xl'>
+        <DialogHeader className='text-start'>
+          <DialogTitle>{isUpdate ? '更新活动' : '创建活动'}</DialogTitle>
+          <DialogDescription>
+            {isUpdate ? '更新活动信息' : '添加新活动'}
+          </DialogDescription>
+        </DialogHeader>
         <Form {...form}>
           <form
             id='tasks-form'
             onSubmit={form.handleSubmit(onSubmit)}
-            className='flex-1 space-y-6 overflow-y-auto px-4'
+            className='flex-1 space-y-6 overflow-y-auto pr-1'
           >
             <FormField
               control={form.control}
-              name='title'
+              name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Title</FormLabel>
+                  <FormLabel>活动名称</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder='Enter a title' />
+                    <Input {...field} placeholder='请输入活动名称' />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name='status'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <SelectDropdown
-                    defaultValue={field.value}
-                    onValueChange={field.onChange}
-                    placeholder='Select dropdown'
-                    items={[
-                      { label: 'In Progress', value: 'in progress' },
-                      { label: 'Backlog', value: 'backlog' },
-                      { label: 'Todo', value: 'todo' },
-                      { label: 'Canceled', value: 'canceled' },
-                      { label: 'Done', value: 'done' },
-                    ]}
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='label'
-              render={({ field }) => (
-                <FormItem className='relative'>
-                  <FormLabel>Label</FormLabel>
-                  <FormControl>
-                    <RadioGroup
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='type'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>活动类型</FormLabel>
+                    <SelectDropdown
+                      defaultValue={`${field.value}`}
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className='flex flex-col space-y-1'
-                    >
-                      <FormItem className='flex items-center'>
-                        <FormControl>
-                          <RadioGroupItem value='documentation' />
-                        </FormControl>
-                        <FormLabel className='font-normal'>
-                          Documentation
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className='flex items-center'>
-                        <FormControl>
-                          <RadioGroupItem value='feature' />
-                        </FormControl>
-                        <FormLabel className='font-normal'>Feature</FormLabel>
-                      </FormItem>
-                      <FormItem className='flex items-center'>
-                        <FormControl>
-                          <RadioGroupItem value='bug' />
-                        </FormControl>
-                        <FormLabel className='font-normal'>Bug</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='priority'
-              render={({ field }) => (
-                <FormItem className='relative'>
-                  <FormLabel>Priority</FormLabel>
-                  <FormControl>
-                    <RadioGroup
+                      placeholder='请选择活动类型'
+                      items={[
+                        { label: '口碑场', value: `${ActivityType.KOUBEI}` },
+                        { label: '粉丝专场', value: `${ActivityType.FANS}` },
+                        { label: '路演场', value: `${ActivityType.ROADSHOW}` },
+                        { label: '首映礼', value: `${ActivityType.PREMIERE}` },
+                      ]}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='hallType'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>影厅类型</FormLabel>
+                    <SelectDropdown
+                      defaultValue={`${field.value}`}
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className='flex flex-col space-y-1'
-                    >
-                      <FormItem className='flex items-center'>
-                        <FormControl>
-                          <RadioGroupItem value='high' />
-                        </FormControl>
-                        <FormLabel className='font-normal'>High</FormLabel>
-                      </FormItem>
-                      <FormItem className='flex items-center'>
-                        <FormControl>
-                          <RadioGroupItem value='medium' />
-                        </FormControl>
-                        <FormLabel className='font-normal'>Medium</FormLabel>
-                      </FormItem>
-                      <FormItem className='flex items-center'>
-                        <FormControl>
-                          <RadioGroupItem value='low' />
-                        </FormControl>
-                        <FormLabel className='font-normal'>Low</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      placeholder='请选择影厅类型'
+                      items={[
+                        { label: '普通厅', value: `${HallType.STANDARD}` },
+                        { label: 'IMAX', value: `${HallType.IMAX}` },
+                        { label: '杜比', value: `${HallType.DOLBY}` },
+                        { label: 'CINITY', value: `${HallType.CINITY}` },
+                      ]}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='startTime'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>活动开始时间</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='datetime-local'
+                        value={
+                          field.value
+                            ? new Date(field.value).toISOString().slice(0, 16)
+                            : ''
+                        }
+                        onChange={(e) =>
+                          field.onChange(new Date(e.target.value))
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='screeningTime'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>放映开始时间</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='datetime-local'
+                        value={
+                          field.value
+                            ? new Date(field.value).toISOString().slice(0, 16)
+                            : ''
+                        }
+                        onChange={(e) =>
+                          field.onChange(new Date(e.target.value))
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='city'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>城市</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入城市' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='address'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>地址</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入地址' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='movieName'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>电影名称</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入电影名称' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='posterUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>海报地址</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入海报链接' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='price'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>价格</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        placeholder='0 表示免费'
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='guests'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>交流人员</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入交流人员名单' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='recruiterName'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>招募方名称</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入招募方名称' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='recruiterContact'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>招募方联系方式</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入联系方式' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='benefitFree'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>免费周边</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入免费周边' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='benefitLottery'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>抽奖礼品</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入抽奖礼品' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='registrationLink'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>报名链接</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入报名链接' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='feedbackLink'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>反馈链接</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入反馈链接' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='maxRegistrations'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>最大报名人数</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        placeholder='0 表示无限制'
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='currentRegistrations'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>当前报名人数</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </form>
         </Form>
-        <SheetFooter className='gap-2'>
-          <SheetClose asChild>
-            <Button variant='outline'>Close</Button>
-          </SheetClose>
+        <DialogFooter className='gap-2'>
+          <DialogClose asChild>
+            <Button variant='outline'>取消</Button>
+          </DialogClose>
           <Button form='tasks-form' type='submit'>
-            Save changes
+            保存
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
