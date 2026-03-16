@@ -8,3 +8,7 @@ export type EmailLoginParams = {
 export async function emailLogin(params: EmailLoginParams) {
   return request.post('/user/email-login', params)
 }
+
+export async function getUserList(params: Record<string, unknown>) {
+  return request.get('/user/list', { params })
+}
