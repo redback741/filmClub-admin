@@ -1,7 +1,9 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/auth-store'
 
-const baseURL = import.meta.env?.VITE_API_BASE_URL ?? '/api'
+const rawBaseURL = import.meta.env?.VITE_API_BASE_URL ?? '/api'
+// 去除引号并确保正确
+const baseURL = rawBaseURL.replace(/^["']|["']$/g, '')
 
 const request: AxiosInstance = axios.create({
   baseURL,
