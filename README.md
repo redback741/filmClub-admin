@@ -117,3 +117,13 @@ Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
 ## License
 
 Licensed under the [MIT License](https://choosealicense.com/licenses/mit/)
+
+## 部署服务器
+
+### 本地打包
+
+npm run build
+
+### 上传到服务器
+
+scp -r dist/* root@39.97.42.229:/var/www/filmClub-admin/

@@ -70,23 +70,31 @@ export const usersColumns: ColumnDef<User>[] = [
     enableSorting: false,
   },
   {
-    accessorKey: 'status',
+    accessorKey: 'isFrozen',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Status' />
+      <DataTableColumnHeader column={column} title='状态' />
     ),
     cell: ({ row }) => {
-      const { status } = row.original
-      const badgeColor = callTypes.get(status)
+      const isFrozen = !!row.original.isFrozen
+      const badgeColor = callTypes.get(isFrozen ? 'suspended' : 'active')
+      const label = isFrozen ? '冻结' : '启用'
       return (
         <div className='flex space-x-2'>
           <Badge variant='outline' className={cn('capitalize', badgeColor)}>
-            {row.getValue('status')}
+            {label}
           </Badge>
         </div>
       )
     },
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
+      if (!Array.isArray(value) || value.length === 0) return true
+      const frozen = row.getValue(id) === true
+      const wantFrozen = value.includes('true')
+      const wantEnabled = value.includes('false')
+      if (wantFrozen && wantEnabled) return true
+      if (wantFrozen) return frozen
+      if (wantEnabled) return !frozen
+      return true
     },
     enableHiding: false,
     enableSorting: false,

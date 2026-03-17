@@ -13,8 +13,11 @@ import {
 } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { type NavigateFn, useTableUrlState } from '@/hooks/use-table-url-state'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -31,20 +34,12 @@ import {
 import { LongText } from '@/components/long-text'
 import { callTypes } from '../data/data'
 import { type User } from '../data/schema'
-import { DataTableRowActions } from './data-table-row-actions'
-import { getUserList } from '@/api/users'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { deleteUser, getUserList } from '@/api/users'
 
 type DataTableProps = {
   search: Record<string, unknown>
   navigate: NavigateFn
-}
-
-const userStatuses = ['active', 'inactive', 'invited', 'suspended'] as const
-
-type UserStatus = (typeof userStatuses)[number]
-
-const isUserStatus = (v: unknown): v is UserStatus => {
-  return typeof v === 'string' && userStatuses.includes(v as UserStatus)
 }
 
 const toDate = (v: unknown) => {
@@ -69,7 +64,11 @@ const normalizeUser = (raw: Record<string, unknown>): User => {
   const email = toString(raw.email ?? raw.mail)
   const phoneNumber = toString(raw.phoneNumber ?? raw.phone ?? raw.mobile)
   const nickName = toString(raw.nickName ?? raw.nickname ?? '')
-  const status = isUserStatus(raw.status) ? raw.status : 'active'
+  const isFrozen =
+    raw.isFrozen === true ||
+    raw.isFrozen === 1 ||
+    raw.isFrozen === '1' ||
+    raw.isFrozen === 'true'
   const isAdmin =
     raw.isAdmin === true ||
     raw.isAdmin === 1 ||
@@ -85,11 +84,77 @@ const normalizeUser = (raw: Record<string, unknown>): User => {
     username,
     email,
     phoneNumber,
-    status,
+    isFrozen,
     role,
     createdAt,
     updatedAt,
   }
+}
+
+function UserDeleteAction({
+  userId,
+  disabled,
+}: {
+  userId: string
+  disabled: boolean
+}) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const isOkResponse = (res: unknown) => {
+    if (!res || typeof res !== 'object') return false
+    const code = (res as Record<string, unknown>).code
+    return code === 200 || code === 201
+  }
+
+  const handleConfirm = async () => {
+    setIsLoading(true)
+    toast.promise(deleteUser({id: userId}), {
+      loading: '删除中...',
+      success: (res: unknown) => {
+        setIsLoading(false)
+        if (isOkResponse(res)) {
+          queryClient.invalidateQueries({ queryKey: ['users'] })
+          setOpen(false)
+          return '删除成功'
+        }
+        return '删除失败'
+      },
+      error: () => {
+        setIsLoading(false)
+        return '删除失败'
+      },
+    })
+  }
+
+  return (
+    <>
+      <Button
+        variant='destructive'
+        size='icon'
+        className='h-8 w-8'
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        aria-label='删除用户'
+        title={disabled ? '管理员不可删除' : '删除用户'}
+      >
+        <Trash2 size={16} />
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title='确认删除'
+        desc='确认删除该用户吗？删除后无法恢复。'
+        confirmText='删除'
+        cancelBtnText='取消'
+        destructive
+        isLoading={isLoading}
+        handleConfirm={handleConfirm}
+        className='sm:max-w-sm'
+      />
+    </>
+  )
 }
 
 const columns: ColumnDef<User>[] = [
@@ -157,24 +222,32 @@ const columns: ColumnDef<User>[] = [
     enableSorting: false,
   },
   {
-    accessorKey: 'status',
+    accessorKey: 'isFrozen',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='状态' />
     ),
     cell: ({ row }) => {
-      const { status } = row.original
-      const badgeColor = callTypes.get(status)
+      const isFrozen = !!row.original.isFrozen
+      const badgeColor = callTypes.get(isFrozen ? 'suspended' : 'active')
+      const label = isFrozen ? '冻结' : '启用'
       return (
         <div className='flex space-x-2'>
           <Badge variant='outline' className={cn('capitalize', badgeColor)}>
-            {row.getValue('status')}
+            {label}
           </Badge>
         </div>
       )
     },
     filterFn: (row, id, value) => {
       if (!Array.isArray(value) || value.length === 0) return true
-      return value.includes(row.getValue(id))
+      const v = row.getValue(id)
+      const frozen = v === true
+      const wantFrozen = value.includes('true')
+      const wantEnabled = value.includes('false')
+      if (wantFrozen && wantEnabled) return true
+      if (wantFrozen) return frozen
+      if (wantEnabled) return !frozen
+      return true
     },
     enableHiding: false,
     enableSorting: false,
@@ -203,7 +276,18 @@ const columns: ColumnDef<User>[] = [
   },
   {
     id: 'actions',
-    cell: DataTableRowActions,
+    header: '操作',
+    cell: ({ row }) => {
+      const userId = String(row.original.id ?? '')
+      const disabled = row.original.role === 'admin'
+      return (
+        <div className='flex justify-end'>
+          <UserDeleteAction userId={userId} disabled={disabled} />
+        </div>
+      )
+    },
+    enableSorting: false,
+    enableHiding: false,
   },
 ]
 
@@ -273,7 +357,7 @@ export function UsersTable({ search, navigate }: DataTableProps) {
       // username per-column text filter
       { columnId: 'nickName', searchKey: 'nickName', type: 'string' },
       { columnId: 'username', searchKey: 'username', type: 'string' },
-      { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: 'isFrozen', searchKey: 'isFrozen', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
     ],
   })
@@ -281,15 +365,19 @@ export function UsersTable({ search, navigate }: DataTableProps) {
   const requestParams = useMemo(() => {
     const nickName = columnFilters.find((f) => f.id === 'nickName')?.value
     const username = columnFilters.find((f) => f.id === 'username')?.value
-    const status = columnFilters.find((f) => f.id === 'status')?.value
+    const isFrozenFilter = columnFilters.find((f) => f.id === 'isFrozen')?.value
     const role = columnFilters.find((f) => f.id === 'role')?.value
+    const isFrozen =
+      Array.isArray(isFrozenFilter) && isFrozenFilter.length === 1
+        ? isFrozenFilter[0] === 'true'
+        : undefined
 
     return {
       page: pagination.pageIndex + 1,
       pageSize: pagination.pageSize,
       nickName: typeof nickName === 'string' ? nickName : undefined,
       username: typeof username === 'string' ? username : undefined,
-      status: Array.isArray(status) ? status : undefined,
+      isFrozen,
       role: Array.isArray(role) ? role : undefined,
     }
   }, [columnFilters, pagination.pageIndex, pagination.pageSize])
@@ -362,13 +450,11 @@ export function UsersTable({ search, navigate }: DataTableProps) {
         searchKey='username'
         filters={[
           {
-            columnId: 'status',
-            title: 'Status',
+            columnId: 'isFrozen',
+            title: '状态',
             options: [
-              { label: 'Active', value: 'active' },
-              { label: 'Inactive', value: 'inactive' },
-              { label: 'Invited', value: 'invited' },
-              { label: 'Suspended', value: 'suspended' },
+              { label: '启用', value: 'false' },
+              { label: '冻结', value: 'true' },
             ],
           },
           {

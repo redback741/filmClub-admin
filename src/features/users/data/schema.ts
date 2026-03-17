@@ -1,12 +1,6 @@
 import { z } from 'zod'
 
-const userStatusSchema = z.union([
-  z.literal('active'),
-  z.literal('inactive'),
-  z.literal('invited'),
-  z.literal('suspended'),
-])
-export type UserStatus = z.infer<typeof userStatusSchema>
+export type UserStatus = 'active' | 'inactive' | 'invited' | 'suspended'
 
 const userRoleSchema = z.union([
   z.literal('superadmin'),
@@ -21,7 +15,7 @@ const userSchema = z.object({
   username: z.string(),
   email: z.string(),
   phoneNumber: z.string(),
-  status: userStatusSchema,
+  isFrozen: z.boolean().optional().default(false),
   role: userRoleSchema,
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

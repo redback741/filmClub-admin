@@ -21,3 +21,7 @@ export async function getUserList(params: Record<string, unknown>) {
 export async function emailRegister(params: RegisterParams) {
   return request.post('/user/register', params)
 }
+
+export async function deleteUser(params: any) {
+  return request.delete('/user/delete?id=' + params.id)
+}
