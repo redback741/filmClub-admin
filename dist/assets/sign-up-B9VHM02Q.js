@@ -1,0 +1,1 @@
+import{j as o}from"./index-DBCTCNzz.js";import{a as m}from"./index-CJAF-WGb.js";import{S as s}from"./skeleton-DMoTz4Ej.js";const e=()=>o.jsx(m,{fallback:o.jsx(s,{className:"h-[30rem] w-[25rem]"})});export{e as component};
