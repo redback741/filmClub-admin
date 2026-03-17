@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useNavigate } from '@tanstack/react-router'
 import { IconFacebook, IconGithub } from '@/assets/brand-icons'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -15,47 +16,56 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
+import { emailRegister } from '@/api/users'
+import { toast } from 'sonner'
 
-const formSchema = z
-  .object({
-    email: z.email({
-      error: (iss) =>
-        iss.input === '' ? 'Please enter your email' : undefined,
-    }),
-    password: z
-      .string()
-      .min(1, 'Please enter your password')
-      .min(7, 'Password must be at least 7 characters long'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match.",
-    path: ['confirmPassword'],
-  })
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/
+
+const formSchema = z.object({
+  email: z.email({
+    error: (iss) => (iss.input === '' ? '请输入邮箱' : undefined),
+  }),
+  username: z.string().min(1, '请输入用户名'),
+  password: z
+    .string()
+    .min(8, '密码不少于8位')
+    .regex(passwordRegex, '密码必须包含大小写字母和数字'),
+})
 
 export function SignUpForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
   const [isLoading, setIsLoading] = useState(false)
+  const navigate = useNavigate()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
+      username: '',
       password: '',
-      confirmPassword: '',
     },
   })
 
   function onSubmit(data: z.infer<typeof formSchema>) {
+    return
+    // 弹窗 暂不开放注册
+    toast.error('暂不开放注册')
+    return
     setIsLoading(true)
-    // eslint-disable-next-line no-console
-    console.log(data)
-
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 3000)
+    toast.promise(emailRegister(data), {
+      loading: '注册中...',
+      success: () => {
+        setIsLoading(false)
+        navigate({ to: '/sign-in' })
+        return '注册成功'
+      },
+      error: () => {
+        setIsLoading(false)
+        return '注册失败'
+      },
+    })
   }
 
   return (
@@ -70,9 +80,22 @@ export function SignUpForm({
           name='email'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>邮箱</FormLabel>
               <FormControl>
                 <Input placeholder='name@example.com' {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='username'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>用户名</FormLabel>
+              <FormControl>
+                <Input placeholder='请输入用户名' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -83,20 +106,7 @@ export function SignUpForm({
           name='password'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <PasswordInput placeholder='********' {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='confirmPassword'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Confirm Password</FormLabel>
+              <FormLabel>密码</FormLabel>
               <FormControl>
                 <PasswordInput placeholder='********' {...field} />
               </FormControl>
@@ -105,7 +115,7 @@ export function SignUpForm({
           )}
         />
         <Button className='mt-2' disabled={isLoading}>
-          Create Account
+          注册
         </Button>
 
         <div className='relative my-2'>

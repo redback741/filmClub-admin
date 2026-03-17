@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  type ColumnDef,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -13,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { type NavigateFn, useTableUrlState } from '@/hooks/use-table-url-state'
 import { useQuery } from '@tanstack/react-query'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -21,11 +23,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { roles } from '../data/data'
+import {
+  DataTableColumnHeader,
+  DataTablePagination,
+  DataTableToolbar,
+} from '@/components/data-table'
+import { LongText } from '@/components/long-text'
+import { callTypes } from '../data/data'
 import { type User } from '../data/schema'
-import { DataTableBulkActions } from './data-table-bulk-actions'
-import { usersColumns as columns } from './users-columns'
+import { DataTableRowActions } from './data-table-row-actions'
 import { getUserList } from '@/api/users'
 
 type DataTableProps = {
@@ -34,17 +40,11 @@ type DataTableProps = {
 }
 
 const userStatuses = ['active', 'inactive', 'invited', 'suspended'] as const
-const userRoles = ['superadmin', 'admin', 'cashier', 'manager'] as const
 
 type UserStatus = (typeof userStatuses)[number]
-type UserRole = (typeof userRoles)[number]
 
 const isUserStatus = (v: unknown): v is UserStatus => {
   return typeof v === 'string' && userStatuses.includes(v as UserStatus)
-}
-
-const isUserRole = (v: unknown): v is UserRole => {
-  return typeof v === 'string' && userRoles.includes(v as UserRole)
 }
 
 const toDate = (v: unknown) => {
@@ -65,20 +65,23 @@ const toString = (v: unknown) => {
 
 const normalizeUser = (raw: Record<string, unknown>): User => {
   const id = toString(raw.id ?? raw.userId ?? raw.uid ?? raw._id)
-  const username = toString(raw.username ?? raw.name ?? raw.nickName ?? raw.email)
+  const username = toString(raw.username ?? raw.email)
   const email = toString(raw.email ?? raw.mail)
   const phoneNumber = toString(raw.phoneNumber ?? raw.phone ?? raw.mobile)
-  const firstName = toString(raw.firstName ?? raw.givenName ?? raw.nickname ?? '')
-  const lastName = toString(raw.lastName ?? raw.familyName ?? '')
+  const nickName = toString(raw.nickName ?? raw.nickname ?? '')
   const status = isUserStatus(raw.status) ? raw.status : 'active'
-  const role = isUserRole(raw.role) ? raw.role : 'admin'
+  const isAdmin =
+    raw.isAdmin === true ||
+    raw.isAdmin === 1 ||
+    raw.isAdmin === '1' ||
+    raw.isAdmin === 'true'
+  const role = isAdmin ? 'admin' : 'cashier'
   const createdAt = toDate(raw.createdAt ?? raw.createTime ?? raw.created_time)
   const updatedAt = toDate(raw.updatedAt ?? raw.updateTime ?? raw.updated_time)
 
   return {
     id: id || `${Date.now()}`,
-    firstName,
-    lastName,
+    nickName,
     username,
     email,
     phoneNumber,
@@ -88,6 +91,121 @@ const normalizeUser = (raw: Record<string, unknown>): User => {
     updatedAt,
   }
 }
+
+const columns: ColumnDef<User>[] = [
+  {
+     accessorKey: 'id',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='ID' />
+    ),
+    cell: ({ row }) => (
+      <LongText className='max-w-36 ps-3'>{row.getValue('id')}</LongText>
+    ),
+    // enableSorting: true,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'nickName',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='昵称' />
+    ),
+    cell: ({ row }) => (
+      <LongText className='max-w-36 ps-3'>{row.getValue('nickName')}</LongText>
+    ),
+    meta: {
+      className: cn(
+        'drop-shadow-[0_1px_2px_rgb(0_0_0_/_0.1)] dark:drop-shadow-[0_1px_2px_rgb(255_255_255_/_0.1)]',
+        'ps-0.5 max-md:sticky start-0 @4xl/content:table-cell @4xl/content:drop-shadow-none'
+      ),
+    },
+    enableHiding: false,
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'username',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='用户名' />
+    ),
+    cell: ({ row }) => (
+      <LongText className='max-w-36 ps-3'>{row.getValue('username')}</LongText>
+    ),
+    meta: {
+      className: cn(
+        'drop-shadow-[0_1px_2px_rgb(0_0_0_/_0.1)] dark:drop-shadow-[0_1px_2px_rgb(255_255_255_/_0.1)]',
+        'ps-0.5 @4xl/content:table-cell @4xl/content:drop-shadow-none'
+      ),
+    },
+    enableHiding: false,
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'email',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='邮箱' />
+    ),
+    cell: ({ row }) => (
+      <div className='w-fit ps-2 text-nowrap'>{row.getValue('email')}</div>
+    ),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'phoneNumber',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='手机号' />
+    ),
+    cell: ({ row }) => <div>{row.getValue('phoneNumber')}</div>,
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='状态' />
+    ),
+    cell: ({ row }) => {
+      const { status } = row.original
+      const badgeColor = callTypes.get(status)
+      return (
+        <div className='flex space-x-2'>
+          <Badge variant='outline' className={cn('capitalize', badgeColor)}>
+            {row.getValue('status')}
+          </Badge>
+        </div>
+      )
+    },
+    filterFn: (row, id, value) => {
+      if (!Array.isArray(value) || value.length === 0) return true
+      return value.includes(row.getValue(id))
+    },
+    enableHiding: false,
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'role',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='角色' />
+    ),
+    cell: ({ row }) => {
+      const { role } = row.original
+      return (
+        <div className='flex items-center gap-x-2'>
+          <span className='text-sm'>
+            {role === 'admin' ? '管理员' : '用户'}
+          </span>
+        </div>
+      )
+    },
+    filterFn: (row, id, value) => {
+      if (!Array.isArray(value) || value.length === 0) return true
+      return value.includes(row.getValue(id))
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: 'actions',
+    cell: DataTableRowActions,
+  },
+]
 
 const getListFromResponse = (res: unknown): unknown[] => {
   if (Array.isArray(res)) return res
@@ -132,7 +250,6 @@ const getTotalFromResponse = (res: unknown): number | null => {
 
 export function UsersTable({ search, navigate }: DataTableProps) {
   // Local UI-only states
-  const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
 
@@ -154,6 +271,7 @@ export function UsersTable({ search, navigate }: DataTableProps) {
     globalFilter: { enabled: false },
     columnFilters: [
       // username per-column text filter
+      { columnId: 'nickName', searchKey: 'nickName', type: 'string' },
       { columnId: 'username', searchKey: 'username', type: 'string' },
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
@@ -161,6 +279,7 @@ export function UsersTable({ search, navigate }: DataTableProps) {
   })
 
   const requestParams = useMemo(() => {
+    const nickName = columnFilters.find((f) => f.id === 'nickName')?.value
     const username = columnFilters.find((f) => f.id === 'username')?.value
     const status = columnFilters.find((f) => f.id === 'status')?.value
     const role = columnFilters.find((f) => f.id === 'role')?.value
@@ -168,6 +287,7 @@ export function UsersTable({ search, navigate }: DataTableProps) {
     return {
       page: pagination.pageIndex + 1,
       pageSize: pagination.pageSize,
+      nickName: typeof nickName === 'string' ? nickName : undefined,
       username: typeof username === 'string' ? username : undefined,
       status: Array.isArray(status) ? status : undefined,
       role: Array.isArray(role) ? role : undefined,
@@ -209,16 +329,13 @@ export function UsersTable({ search, navigate }: DataTableProps) {
     state: {
       sorting,
       pagination,
-      rowSelection,
       columnFilters,
       columnVisibility,
     },
     manualPagination: true,
     pageCount,
-    enableRowSelection: true,
     onPaginationChange,
     onColumnFiltersChange,
-    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
@@ -257,7 +374,10 @@ export function UsersTable({ search, navigate }: DataTableProps) {
           {
             columnId: 'role',
             title: 'Role',
-            options: roles.map((role) => ({ ...role })),
+            options: [
+              { label: '管理员', value: 'admin' },
+              { label: '用户', value: 'cashier' },
+            ],
           },
         ]}
       />
@@ -332,7 +452,6 @@ export function UsersTable({ search, navigate }: DataTableProps) {
         </Table>
       </div>
       <DataTablePagination table={table} className='mt-auto' />
-      <DataTableBulkActions table={table} />
     </div>
   )
 }
