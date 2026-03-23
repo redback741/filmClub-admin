@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { createActivity, type Activity, updateActivity} from '@/api/activies'
 import { showSubmittedData } from '@/lib/show-submitted-data'
@@ -24,6 +25,8 @@ import {
 } from '@/components/ui/dialog'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { type Task, ActivityType, HallType } from '../data/schema'
+import { MoviePickerDialog } from './movie-picker-dialog'
+import type { Movie } from '@/api/movies'
 
 const cityOptions = [
   { label: '北京', value: 'Beijing' },
@@ -58,6 +61,7 @@ type ActivityForm = {
   screeningTime: Date
   city: string
   address: string
+  movieId: string
   movieName: string
   posterUrl?: string
   price: number
@@ -79,6 +83,7 @@ export function TasksMutateDrawer({
 }: TaskMutateDrawerProps) {
   const isUpdate = !!currentRow
   const queryClient = useQueryClient()
+  const [moviePickerOpen, setMoviePickerOpen] = useState(false)
 
   const coerceEnumNumber = (value: string, fallback: number) => {
     const n = Number(value)
@@ -111,6 +116,10 @@ export function TasksMutateDrawer({
           : (currentRow?.screeningTime as Date)) || new Date(),
       city: currentRow?.city ?? '',
       address: currentRow?.address ?? '',
+      movieId: String(
+        (currentRow as unknown as { movieId?: string | number } | undefined)
+          ?.movieId ?? ''
+      ),
       movieName: currentRow?.movieName ?? '',
       director: currentRow?.director ?? '',
       actor: currentRow?.actor ?? '',
@@ -141,6 +150,10 @@ export function TasksMutateDrawer({
   })
 
   const onSubmit = (data: ActivityForm) => {
+    if (!data.movieId.trim() || !data.movieName.trim()) {
+      toast.error('请选择电影')
+      return
+    }
     // if (isUpdate) {
     //   onOpenChange(false)
     //   form.reset()
@@ -155,6 +168,7 @@ export function TasksMutateDrawer({
       screeningTime: data.screeningTime,
       city: data.city,
       address: data.address,
+      movieId: data.movieId,
       movieName: data.movieName,
       posterUrl: toOptionalString(data.posterUrl),
       price: data.price,
@@ -166,10 +180,10 @@ export function TasksMutateDrawer({
       feedbackLink: toOptionalString(data.feedbackLink),
       maxRegistrations: data.maxRegistrations,
       currentRegistrations: data.currentRegistrations,
-      director: data.director,
-      actor: data.actor,
-      shootingTime: data.shootingTime,
-      doubanRating: data.doubanRating,
+      director: toOptionalString(data.director),
+      actor: toOptionalString(data.actor),
+      shootingTime: toOptionalString(data.shootingTime),
+      doubanRating: toOptionalString(data.doubanRating),
       guests: toOptionalString(data.guests),
     }
     // 增加更新活动相关逻辑
@@ -215,14 +229,15 @@ export function TasksMutateDrawer({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v)
-        form.reset()
-      }}
-    >
-      <DialogContent className='flex max-h-[80vh] flex-col sm:max-w-4xl'>
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          onOpenChange(v)
+          form.reset()
+        }}
+      >
+        <DialogContent className='flex max-h-[80vh] flex-col sm:max-w-4xl'>
         <DialogHeader className='text-start'>
           <DialogTitle>{isUpdate ? '更新活动' : '创建活动'}</DialogTitle>
           <DialogDescription>
@@ -378,87 +393,69 @@ export function TasksMutateDrawer({
               />
             </div>
 
-            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+            <div className='space-y-3'>
               <FormField
                 control={form.control}
                 name='movieName'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>电影名称</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='请输入电影名称' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='director'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>导演</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='请输入导演' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='actor'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>演员</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='请输入演员' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='shootingTime'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>拍摄时间</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='请输入拍摄时间(年份)' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='doubanRating'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>豆瓣评分</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='请输入豆瓣评分' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-
-
-              <FormField
-                control={form.control}
-                name='posterUrl'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>海报地址</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='请输入海报链接' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const posterUrl = form.getValues('posterUrl')
+                  const director = form.getValues('director')
+                  const actor = form.getValues('actor')
+                  const shootingTime = form.getValues('shootingTime')
+                  const doubanRating = form.getValues('doubanRating')
+                  return (
+                    <FormItem>
+                      <div className='flex items-center justify-between gap-3'>
+                        <FormLabel>电影</FormLabel>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => setMoviePickerOpen(true)}
+                        >
+                          选择电影
+                        </Button>
+                      </div>
+                      <FormControl>
+                        <div className='rounded-md border p-3'>
+                          <div className='flex items-start justify-between gap-4'>
+                            <div className='min-w-0 flex-1'>
+                              <div className='truncate font-medium'>
+                                {field.value?.trim() ? field.value : '未选择'}
+                              </div>
+                              <div className='mt-2 grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-2'>
+                                <div className='truncate'>
+                                  导演：{director?.trim() ? director : '-'}
+                                </div>
+                                <div className='truncate'>
+                                  演员：{actor?.trim() ? actor : '-'}
+                                </div>
+                                <div className='truncate'>
+                                  拍摄时间：
+                                  {shootingTime?.trim() ? shootingTime : '-'}
+                                </div>
+                                <div className='truncate'>
+                                  豆瓣评分：
+                                  {doubanRating?.trim() ? doubanRating : '-'}
+                                </div>
+                              </div>
+                            </div>
+                            {posterUrl?.trim() ? (
+                              <img
+                                src={posterUrl}
+                                alt={field.value || 'poster'}
+                                className='h-20 w-14 rounded object-cover'
+                              />
+                            ) : (
+                              <div className='h-20 w-14 rounded bg-muted' />
+                            )}
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
               />
             </div>
 
@@ -630,7 +627,36 @@ export function TasksMutateDrawer({
             保存
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <MoviePickerDialog
+        open={moviePickerOpen}
+        onOpenChange={setMoviePickerOpen}
+        onSelect={(movie: Movie) => {
+          form.setValue('movieId', String(movie.id ?? ''))
+          form.setValue('movieName', movie.movieName ?? '')
+          form.setValue(
+            'posterUrl',
+            typeof movie.posterUrl === 'string' ? movie.posterUrl : ''
+          )
+          form.setValue(
+            'director',
+            typeof movie.director === 'string' ? movie.director : ''
+          )
+          form.setValue(
+            'actor',
+            typeof movie.actor === 'string' ? movie.actor : ''
+          )
+          form.setValue(
+            'shootingTime',
+            typeof movie.shootingTime === 'string' ? movie.shootingTime : ''
+          )
+          form.setValue(
+            'doubanRating',
+            typeof movie.doubanRating === 'string' ? movie.doubanRating : ''
+          )
+        }}
+      />
+    </>
   )
 }

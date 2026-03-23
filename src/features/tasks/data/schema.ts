@@ -28,6 +28,7 @@ export const taskSchema = z.object({
   updateTime: z.coerce.date().optional(),
 
   // 电影/展示信息
+  movieId: z.union([z.string(), z.number()]).transform((v) => String(v)).optional(),
   movieName: z.string().optional(),
   posterUrl: z.string().optional(),
   city: z.string().optional(),

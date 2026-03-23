@@ -18,8 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useMovies } from './movies-provider'
 
 export function MoviesTable({ data = [] }: { data: Movie[] }) {
+  const { setOpen, setCurrentRow } = useMovies()
   const toCellText = (v: unknown) => {
     if (v == null) return ''
     if (typeof v === 'string') return v
@@ -71,10 +73,13 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
         <Table className='min-w-[960px] table-fixed'>
           <TableHeader>
             <TableRow>
-              <TableHead className='w-[240px]'>电影名称</TableHead>
+              <TableHead className='w-[50px]'>编号</TableHead>
+              <TableHead className='w-[180px]'>电影名称</TableHead>
               <TableHead className='w-[140px]'>导演</TableHead>
               <TableHead className='w-[220px]'>演员</TableHead>
+              <TableHead className='w-[100px]'>豆瓣评分</TableHead>
               <TableHead className='w-[180px]'>上映时间</TableHead>
+              <TableHead className='w-[160px]'>拍摄时间</TableHead>
               <TableHead className='w-[160px]'>海报</TableHead>
               <TableHead className='sticky right-0 w-[120px] bg-muted text-right'>
                 操作
@@ -85,6 +90,9 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
             {pageRows.length ? (
               pageRows.map((item, index) => (
                 <TableRow key={String(item.id ?? item.movieId ?? index)}>
+                  <TableCell>
+                    <div className='truncate'>{toCellText(item.id)}</div>
+                  </TableCell>
                   <TableCell>
                     <div className='truncate'>
                       {toCellText(item.movieName ?? item.name)}
@@ -100,7 +108,17 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
                   </TableCell>
                   <TableCell>
                     <div className='truncate'>
+                      {toCellText(item.doubanRating ?? item.rating)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className='truncate'>
                       {toDateTimeText(item.screeningTime) || '-'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className='truncate'>
+                      {toDateTimeText(item.shootingTime) || '-'}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -115,7 +133,16 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
                     )}
                   </TableCell>
                   <TableCell className='sticky right-0 bg-background text-right'>
-                    <Button size='sm'>编辑</Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => {
+                        setCurrentRow(item)
+                        setOpen('update')
+                      }}
+                    >
+                      修改
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

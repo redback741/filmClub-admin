@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import useDialogState from '@/hooks/use-dialog-state'
-import { type Movie } from '../data/schema'
+import { type Movie } from '@/api/movies'
 
 type DialogType = 'create' | 'update' | 'delete' | 'import' | 'status'
 

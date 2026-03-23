@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { MoviesProvider } from './components/movies-provider'
 import { MoviesTable } from './components/movies-table'
+import { MoviesPrimaryButtons } from './components/movies-primary-buttons'
+import { MoviesDialogs } from './components/movies-dialogs'
 
 export function Movies() {
   const [name, setName] = useState('')
@@ -74,10 +76,13 @@ export function Movies() {
             <Button onClick={() => setName(keyword.trim())}>搜索</Button>
             {/* 重置 刷新*/}
             <Button onClick={handleReset}>重置</Button>
+            <MoviesPrimaryButtons />
           </div>
         </div>
         <MoviesTable data={movies} />
       </Main>
+
+      <MoviesDialogs />
     </MoviesProvider>
   )
 }

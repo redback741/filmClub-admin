@@ -65,6 +65,11 @@ export function Tasks() {
               className='w-60'
             />
             <Button onClick={() => setName(keyword.trim())}>搜索</Button>
+            <Button onClick={() => {
+              setKeyword('')
+              setName('')
+            } }>重置</Button>
+            
             <TasksPrimaryButtons />
           </div>
         </div>
