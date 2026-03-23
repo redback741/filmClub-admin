@@ -6,21 +6,6 @@ export const taskSchema = z.object({
   // 通用标识
   id: z.union([z.string(), z.number()]).transform((v) => String(v)),
 
-  // 标题/名称（兼容两种字段）
-  title: z.string().optional(),
-  name: z.string().optional(),
-
-  // 状态：兼容字符串状态与 ActivityStatus 数值枚举
-  status: z.union([z.string(), z.number()]).optional(),
-
-  // 原任务标签/优先级（前端表格使用）
-  label: z.string().optional(),
-  priority: z.string().optional(),
-
-  // 活动类型/影厅类型（使用枚举数值）
-  type: z.union([z.number(), z.string()]).optional(),
-  hallType: z.union([z.number(), z.string()]).optional(),
-
   // 时间字段
   startTime: z.coerce.date().optional(),
   screeningTime: z.coerce.date().optional(),
@@ -36,33 +21,9 @@ export const taskSchema = z.object({
   actor: z.string().optional(),
   shootingTime: z.string().optional(),
   doubanRating: z.string().optional(),
-
-  // 招募方信息
-  recruiterName: z.string().optional(),
-  recruiterIntro: z.string().optional(),
-  recruiterContact: z.string().optional(),
-
-  // 价格与人员
-  price: z.number().optional(),
-  guests: z.string().optional(),
-
-  // 活动物料
-  benefitFree: z.string().optional(),
-  benefitLottery: z.string().optional(),
-
-  // 链接
-  registrationLink: z.string().optional(),
-  feedbackLink: z.string().optional(),
-
-  // 报名统计
-  maxRegistrations: z.number().optional(),
-  currentRegistrations: z.number().optional(),
-
-  // 软删除
-  isDeleted: z.boolean().optional(),
 })
 
-export type Task = z.infer<typeof taskSchema>
+export type Movie = z.infer<typeof taskSchema>
 
 
 /**

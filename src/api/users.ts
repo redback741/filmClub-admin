@@ -22,6 +22,6 @@ export async function emailRegister(params: RegisterParams) {
   return request.post('/user/register', params)
 }
 
-export async function deleteUser(params: any) {
+export async function deleteUser(params: { id: string }) {
   return request.delete('/user/delete?id=' + params.id)
 }

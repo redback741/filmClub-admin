@@ -27,7 +27,7 @@ export async function deleteActivity(id: string) {
 }
 
 export async function updateActivity(data: Activity) {
-  return http.post<ApiResponse<Activity>>('/activity/update', data)
+  return http.post<ApiResponse<Activity>>('/activity/update?id=' + data.id, data)
 }
 export async function updateActivityStatus(
   id: number,

@@ -32,7 +32,7 @@ export function Users() {
           <div>
             <h2 className='text-2xl font-bold tracking-tight'>用户列表</h2>
             <p className='text-muted-foreground'>
-              Manage your users and their roles here.
+              {/* Manage your users and their roles here. */}
             </p>
           </div>
           <UsersPrimaryButtons />

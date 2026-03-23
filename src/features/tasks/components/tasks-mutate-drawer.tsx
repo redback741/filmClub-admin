@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
-import { createActivity, type Activity } from '@/api/activies'
+import { createActivity, type Activity, updateActivity} from '@/api/activies'
 import { showSubmittedData } from '@/lib/show-submitted-data'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +25,21 @@ import {
 import { SelectDropdown } from '@/components/select-dropdown'
 import { type Task, ActivityType, HallType } from '../data/schema'
 
+const cityOptions = [
+  { label: '北京', value: 'Beijing' },
+  { label: '上海', value: 'Shanghai' },
+  { label: '广州', value: 'Guangzhou' },
+  { label: '深圳', value: 'Shenzhen' },
+  { label: '杭州', value: 'Hangzhou' },
+  { label: '成都', value: 'Chengdu' },
+  { label: '武汉', value: 'Wuhan' },
+  { label: '南京', value: 'Nanjing' },
+  { label: '西安', value: "Xi'an" },
+  { label: '重庆', value: 'Chongqing' },
+  { label: '天津', value: 'Tianjin' },
+  { label: '苏州', value: 'Suzhou' },
+]
+
 type TaskMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -34,6 +49,10 @@ type TaskMutateDrawerProps = {
 type ActivityForm = {
   name: string
   type: string
+  director: string
+  actor: string
+  shootingTime: string
+  doubanRating: string
   hallType: string
   startTime: Date
   screeningTime: Date
@@ -93,6 +112,10 @@ export function TasksMutateDrawer({
       city: currentRow?.city ?? '',
       address: currentRow?.address ?? '',
       movieName: currentRow?.movieName ?? '',
+      director: currentRow?.director ?? '',
+      actor: currentRow?.actor ?? '',
+      shootingTime: currentRow?.shootingTime ?? '',
+      doubanRating: currentRow?.doubanRating ?? '',
       posterUrl: currentRow?.posterUrl ?? '',
       price:
         typeof currentRow?.price === 'number'
@@ -118,13 +141,12 @@ export function TasksMutateDrawer({
   })
 
   const onSubmit = (data: ActivityForm) => {
-    if (isUpdate) {
-      onOpenChange(false)
-      form.reset()
-      showSubmittedData(data, '已更新活动：')
-      return
-    }
+    // if (isUpdate) {
+    //   onOpenChange(false)
+    //   form.reset()
+    // }
 
+    // 新增的电影字段
     const payload: Activity = {
       name: data.name,
       type: coerceEnumNumber(data.type, ActivityType.KOUBEI),
@@ -144,7 +166,32 @@ export function TasksMutateDrawer({
       feedbackLink: toOptionalString(data.feedbackLink),
       maxRegistrations: data.maxRegistrations,
       currentRegistrations: data.currentRegistrations,
+      director: data.director,
+      actor: data.actor,
+      shootingTime: data.shootingTime,
+      doubanRating: data.doubanRating,
       guests: toOptionalString(data.guests),
+    }
+    // 增加更新活动相关逻辑
+    if (isUpdate) {
+      payload.id = currentRow.id
+      toast.promise(updateActivity(payload), {
+        loading: '更新中...',
+        success: (res) => {
+          if (res.code === 200 || res.code === 201) {
+            queryClient.invalidateQueries({ queryKey: ['activities'] })
+            onOpenChange(false)
+            form.reset()
+            showSubmittedData(data, '已更新活动：')
+            return '更新成功'
+          }
+          return '更新失败'
+        },
+        error: () => {
+          return '更新失败'
+        },
+      })
+      return
     }
 
     toast.promise(createActivity(payload), {
@@ -163,6 +210,8 @@ export function TasksMutateDrawer({
         return '创建失败'
       },
     })
+
+
   }
 
   return (
@@ -302,7 +351,13 @@ export function TasksMutateDrawer({
                   <FormItem>
                     <FormLabel>城市</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder='请输入城市' />
+                      <SelectDropdown
+                        defaultValue={field.value}
+                        onValueChange={field.onChange}
+                        placeholder='请选择城市'
+                        className='w-full'
+                        items={cityOptions}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -337,6 +392,61 @@ export function TasksMutateDrawer({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name='director'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>导演</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入导演' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='actor'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>演员</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入演员' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='shootingTime'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>拍摄时间</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入拍摄时间(年份)' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='doubanRating'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>豆瓣评分</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder='请输入豆瓣评分' />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+
+
               <FormField
                 control={form.control}
                 name='posterUrl'

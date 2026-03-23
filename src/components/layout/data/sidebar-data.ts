@@ -52,6 +52,11 @@ export const sidebarData: SidebarData = {
           url: '/tasks',
           icon: ListTodo,
         },
+        {
+          title: '电影管理',
+          url: '/movies',
+          icon: ListTodo,
+        },
         // {
         //   title: '应用管理',
         //   url: '/apps',
