@@ -19,4 +19,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // 配置阿里云OSS代理
+  server: {
+    proxy: {
+      '/oss': {
+        target: 'https://char-room.oss-cn-beijing.aliyuncs.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/oss/, ''),
+      },
+    },
+  },
 })

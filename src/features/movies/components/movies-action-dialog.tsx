@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef, useState, type ChangeEvent } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { type Movie, createMovie, updateMovie } from '@/api/movies'
+import { uploadImageToOss } from '@/api/upload'
 
 const formSchema = z.object({
   movieName: z.string().min(1, '请输入电影名称'),
@@ -134,6 +136,8 @@ export function MoviesActionDialog({
 }: MoviesActionDialogProps) {
   const isEdit = !!currentRow
   const queryClient = useQueryClient()
+  const [isUploadingPoster, setIsUploadingPoster] = useState(false)
+  const posterInputRef = useRef<HTMLInputElement | null>(null)
   const form = useForm<MovieForm>({
     resolver: zodResolver(formSchema),
     defaultValues: isEdit
@@ -156,6 +160,35 @@ export function MoviesActionDialog({
           doubanRating: '',
         },
   })
+  const posterUrl = form.watch('posterUrl')
+
+  const handlePosterUpload = async (
+    event: ChangeEvent<HTMLInputElement>,
+    onChange: (value: string) => void
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('请选择图片文件')
+      return
+    }
+
+    setIsUploadingPoster(true)
+    try {
+      const url = await uploadImageToOss(file)
+      onChange(url)
+      toast.success('海报上传成功')
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message ? error.message : '海报上传失败'
+      toast.error(message)
+    } finally {
+      setIsUploadingPoster(false)
+    }
+  }
 
   const onSubmit = (values: MovieForm) => {
     const payload = {
@@ -307,10 +340,61 @@ export function MoviesActionDialog({
                 name='posterUrl'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>海报地址</FormLabel>
-                    <FormControl>
-                      <Input placeholder='请输入海报链接' {...field} />
-                    </FormControl>
+                    <FormLabel>海报图片</FormLabel>
+                    <div className='space-y-3'>
+                      <input
+                        ref={posterInputRef}
+                        type='file'
+                        accept='image/*'
+                        className='hidden'
+                        onChange={(event) =>
+                          void handlePosterUpload(event, field.onChange)
+                        }
+                      />
+                      <div className='flex flex-wrap gap-2'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          onClick={() => posterInputRef.current?.click()}
+                          disabled={isUploadingPoster}
+                        >
+                          {isUploadingPoster ? '上传中...' : '上传图片'}
+                        </Button>
+                        {field.value?.trim() ? (
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={() => field.onChange('')}
+                            disabled={isUploadingPoster}
+                          >
+                            清空图片
+                          </Button>
+                        ) : null}
+                      </div>
+                      <FormControl>
+                        <Input
+                          readOnly
+                          value={field.value ?? ''}
+                          placeholder='上传成功后自动保存图片地址'
+                        />
+                      </FormControl>
+                      {posterUrl?.trim() ? (
+                        <div className='space-y-2 rounded-md border p-3'>
+                          <img
+                            src={posterUrl}
+                            alt={form.getValues('movieName') || '电影海报'}
+                            className='h-40 w-auto rounded-md border object-cover'
+                          />
+                          <p className='text-muted-foreground break-all text-xs'>
+                            {posterUrl}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className='text-muted-foreground text-sm'>
+                          支持上传 jpg、png、webp 等图片，上传成功后自动回填海报地址。
+                        </p>
+                      )}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -320,7 +404,7 @@ export function MoviesActionDialog({
         </div>
 
         <DialogFooter>
-          <Button type='submit' form='movie-form'>
+          <Button type='submit' form='movie-form' disabled={isUploadingPoster}>
             确定
           </Button>
         </DialogFooter>
