@@ -1,0 +1,2 @@
+2026-07-10
+- src/components/profile-dropdown.tsx：AvatarFallback 从显示用户名首字符改为显示前两字符，并转为大写（trim + slice(0,2) + toUpperCase）。

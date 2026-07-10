@@ -61,6 +61,7 @@ export function UserAuthForm({
         // Mock successful authentication with expiry computed at success time
         const userInfo = {
           email: res.data?.userInfo?.email,
+          username: res.data?.userInfo?.username,
           role: ['user'],
           exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
         }
