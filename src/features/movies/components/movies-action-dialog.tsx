@@ -24,16 +24,31 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { type Movie, createMovie, updateMovie } from '@/api/movies'
+import { type Movie, createMovie, updateMovie, searchTmdbMovies, getTmdbMovieDetail, getNowPlayingMovies, getUpcomingMovies, type TmdbMovieItem } from '@/api/movies'
 import { uploadImageToOss } from '@/api/upload'
+import { Search, Loader2 } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 const formSchema = z.object({
   movieName: z.string().min(1, '请输入电影名称'),
-  director: z.string().optional(),
-  actor: z.string().optional(),
-  screeningTime: z.string().optional(),
-  posterUrl: z.string().optional(),
-  shootingTime: z.string().optional(),
+  director: z.string().min(1, '请输入导演'),
+  actor: z.string().min(1, '请输入演员'),
+  screeningTime: z.string().min(1, '请输入上映时间'),
+  posterUrl: z.string().min(1, '请上传海报图片'),
+  shootingTime: z.string().min(1, '请输入拍摄时间'),
   doubanRating: z
     .string()
     .optional()
@@ -123,6 +138,85 @@ const toBackendDateTime = (v: string | undefined) => {
   return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`
 }
 
+// Table 渲染函数（提取到组件外部好复用）
+function renderMovieTable(
+  movies: TmdbMovieItem[],
+  loading: boolean,
+  onSelect: (item: TmdbMovieItem) => void,
+  renderPoster: (path?: string) => React.ReactNode
+) {
+  if (loading) {
+    return (
+      <div className='flex items-center justify-center py-12'>
+        <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+      </div>
+    )
+  }
+
+  if (movies.length === 0) {
+    return (
+      <p className='text-muted-foreground py-12 text-center text-sm'>
+        暂无数据
+      </p>
+    )
+  }
+
+  return (
+    <div className='max-h-80 overflow-auto rounded-md border'>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className='w-16'>海报</TableHead>
+            <TableHead>电影名称</TableHead>
+            <TableHead>简介</TableHead>
+            <TableHead className='w-24'>上映日期</TableHead>
+            <TableHead className='w-16'>评分</TableHead>
+            <TableHead className='w-20'>操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {movies.map((item) => (
+            <TableRow key={item.id}>
+              <TableCell>{renderPoster(item.poster_path)}</TableCell>
+              <TableCell className='max-w-48  truncate font-medium'>
+                {item.title}
+              </TableCell>
+              <TableCell>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className='max-w-58  line-clamp-2'>
+                      {item.overview || '--'}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{item.overview || '--'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TableCell>
+              <TableCell className='max-w-48 font-medium'>
+                {item.release_date || '未知'}
+              </TableCell>
+              <TableCell>
+                {item.vote_average != null ? item.vote_average.toFixed(1) : '-'}
+              </TableCell>
+              <TableCell>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='secondary'
+                  onClick={() => onSelect(item)}
+                >
+                  选择
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 const isOkResponse = (res: unknown) => {
   if (!res || typeof res !== 'object') return false
   const code = (res as Record<string, unknown>).code
@@ -161,6 +255,135 @@ export function MoviesActionDialog({
         },
   })
   const posterUrl = form.watch('posterUrl')
+
+  // TMDb 搜索弹窗状态
+  const [tmdbDialogOpen, setTmdbDialogOpen] = useState(false)
+  const [tmdbSearchQuery, setTmdbSearchQuery] = useState('')
+  const [tmdbSearchResults, setTmdbSearchResults] = useState<TmdbMovieItem[]>([])
+  const [isTmdbSearching, setIsTmdbSearching] = useState(false)
+  const [tmdbActiveTab, setTmdbActiveTab] = useState('upcoming')
+
+  // 正在上映 / 即将上映 数据
+  const [nowPlayingMovies, setNowPlayingMovies] = useState<TmdbMovieItem[]>([])
+  const [upcomingMovies, setUpcomingMovies] = useState<TmdbMovieItem[]>([])
+  const [isLoadingTab, setIsLoadingTab] = useState(false)
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set())
+
+  const loadTabMovies = async (tab: string) => {
+    if (loadedTabs.has(tab)) return
+    setIsLoadingTab(true)
+    try {
+      if (tab === 'now-playing') {
+        const res = await getNowPlayingMovies()
+        const results = Array.isArray(res?.data) ? res.data : []
+        setNowPlayingMovies(results)
+      } else {
+        const res = await getUpcomingMovies()
+        const results = Array.isArray(res?.data) ? res.data : []
+        setUpcomingMovies(results)
+      }
+      setLoadedTabs((prev) => new Set(prev).add(tab))
+    } catch {
+      toast.error('加载失败，请稍后重试')
+    } finally {
+      setIsLoadingTab(false)
+    }
+  }
+
+  // 弹窗打开时默认加载即将上映
+  const handleTmdbDialogOpen = (open: boolean) => {
+    setTmdbDialogOpen(open)
+    if (open) {
+      setTmdbActiveTab('upcoming')
+      setTmdbSearchQuery('')
+      setTmdbSearchResults([])
+      setLoadedTabs(new Set())
+      // 延迟到下一帧加载，确保 dialog 已渲染
+      setTimeout(() => loadTabMovies('upcoming'), 0)
+    }
+  }
+
+  const handleTabChange = (value: string) => {
+    setTmdbActiveTab(value)
+    loadTabMovies(value)
+  }
+
+  const handleTmdbSearch = async () => {
+    const q = tmdbSearchQuery.trim()
+    if (!q) {
+      setTmdbSearchResults([])
+      return
+    }
+    setIsTmdbSearching(true)
+    try {
+      const res = await searchTmdbMovies(q)
+      const results = Array.isArray(res?.data) ? res.data : []
+      setTmdbSearchResults(results)
+    } catch {
+      toast.error('搜索失败，请稍后重试')
+    } finally {
+      setIsTmdbSearching(false)
+    }
+  }
+
+  const handleClearSearch = () => {
+    setTmdbSearchQuery('')
+    setTmdbSearchResults([])
+  }
+
+  const isSearchActive = tmdbSearchResults.length > 0
+
+  const handleTmdbSelect = async (item: TmdbMovieItem) => {
+    try {
+      const res = await getTmdbMovieDetail(item.id)
+      const detail = res?.data
+      if (!detail) {
+        toast.error('获取电影详情失败')
+        return
+      }
+
+      const posterUrl =
+        detail.poster_path
+          ? detail.poster_path.startsWith('http')
+            ? detail.poster_path
+            : `https://image.tmdb.org/t/p/w500${detail.poster_path}`
+          : ''
+
+      const director =
+        detail.credits?.crew
+          ?.filter((c) => c.job === 'Director')
+          .map((c) => c.name)
+          .join('、') ?? ''
+
+      const actor =
+        detail.credits?.cast
+          ?.slice(0, 5)
+          .map((c) => c.name)
+          .join('、') ?? ''
+
+      const screeningTime = detail.release_date ? `${detail.release_date}T00:00` : ''
+
+      form.setValue('movieName', detail.title ?? '')
+      form.setValue('director', director)
+      form.setValue('actor', actor)
+      if (screeningTime) form.setValue('screeningTime', screeningTime)
+      if (posterUrl) form.setValue('posterUrl', posterUrl)
+      if (detail.vote_average != null) {
+        form.setValue('doubanRating', String(detail.vote_average))
+      }
+
+      setTmdbDialogOpen(false)
+      toast.success('已填入电影信息')
+    } catch {
+      toast.error('获取详情失败')
+    }
+  }
+
+  const renderTmdbPoster = (path?: string) => {
+    if (!path) return <div className='bg-muted flex h-12 w-8 items-center justify-center rounded text-xs text-muted-foreground'>无图</div>
+    const src = path.startsWith('http') ? path : `https://image.tmdb.org/t/p/w92${path}`
+    return <img src={src} className='h-12 w-8 rounded object-cover' />
+  }
 
   const handlePosterUpload = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -224,13 +447,23 @@ export function MoviesActionDialog({
         onOpenChange(state)
       }}
     >
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='sm:max-w-2xl'>
         <DialogHeader className='text-start'>
           <DialogTitle>{isEdit ? '编辑电影' : '创建电影'}</DialogTitle>
           <DialogDescription>
             {isEdit ? '更新电影信息' : '创建新电影'}，点击确定后提交。
           </DialogDescription>
         </DialogHeader>
+
+        <Button
+          type='button'
+          variant='outline'
+          className='mb-2 w-full'
+          onClick={() => handleTmdbDialogOpen(true)}
+        >
+          <Search className='mr-2 h-4 w-4' />
+          从 TMDb 搜索电影信息
+        </Button>
 
         <div className='w-[calc(100%+0.75rem)] overflow-y-auto py-1 pe-3'>
           <Form {...form}>
@@ -409,6 +642,100 @@ export function MoviesActionDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* TMDb 搜索弹窗 */}
+      <Dialog open={tmdbDialogOpen} onOpenChange={handleTmdbDialogOpen}>
+        <DialogContent className='sm:max-w-4xl'>
+          <DialogHeader>
+            <DialogTitle>TMDb 搜索电影</DialogTitle>
+            <DialogDescription>
+              通过 TMDb 搜索电影信息，点击"选择"自动填入表单。
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* 搜索栏 */}
+          <div className='flex gap-2'>
+            <div className='relative flex-1'>
+              <Input
+                placeholder='输入电影名称搜索...'
+                value={tmdbSearchQuery}
+                onChange={(e) => {
+                  setTmdbSearchQuery(e.target.value)
+                  if (e.target.value === '') setTmdbSearchResults([])
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleTmdbSearch()
+                }}
+              />
+              {isSearchActive && (
+                <button
+                  type='button'
+                  onClick={handleClearSearch}
+                  className='text-muted-foreground hover:text-foreground absolute right-2 top-1/2 -translate-y-1/2 text-xs'
+                >
+                  清除
+                </button>
+              )}
+            </div>
+            <Button
+              type='button'
+              onClick={handleTmdbSearch}
+              disabled={isTmdbSearching}
+            >
+              {isTmdbSearching ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                '搜索'
+              )}
+            </Button>
+          </div>
+
+          {/* Tabs + 表格 */}
+          {!isSearchActive ? (
+            <Tabs value={tmdbActiveTab} onValueChange={handleTabChange}>
+              <TabsList className='w-full'>
+                <TabsTrigger value='now-playing' className='flex-1'>
+                  正在上映
+                </TabsTrigger>
+                <TabsTrigger value='upcoming' className='flex-1'>
+                  即将上映
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value='now-playing' className='mt-0'>
+                {renderMovieTable(
+                  nowPlayingMovies,
+                  isLoadingTab && tmdbActiveTab === 'now-playing',
+                  handleTmdbSelect,
+                  renderTmdbPoster
+                )}
+              </TabsContent>
+              <TabsContent value='upcoming' className='mt-0'>
+                {renderMovieTable(
+                  upcomingMovies,
+                  isLoadingTab && tmdbActiveTab === 'upcoming',
+                  handleTmdbSelect,
+                  renderTmdbPoster
+                )}
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div>
+              <div className='mb-2 flex items-center justify-between'>
+                <span className='text-sm font-medium'>
+                  搜索结果（{tmdbSearchResults.length}）
+                </span>
+              </div>
+              {renderMovieTable(
+                tmdbSearchResults,
+                isTmdbSearching,
+                handleTmdbSelect,
+                renderTmdbPoster
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

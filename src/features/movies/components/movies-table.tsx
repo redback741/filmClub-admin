@@ -19,9 +19,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useMovies } from './movies-provider'
+import {
+  Dialog,
+  DialogContent,
+} from '@/components/ui/dialog'
 
 export function MoviesTable({ data = [] }: { data: Movie[] }) {
   const { setOpen, setCurrentRow } = useMovies()
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const toCellText = (v: unknown) => {
     if (v == null) return ''
     if (typeof v === 'string') return v
@@ -126,7 +131,8 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
                       <img
                         src={item.posterUrl}
                         alt={toCellText(item.movieName)}
-                        className='h-14 w-10 rounded object-cover'
+                        className='h-14 w-10 cursor-pointer rounded object-cover transition-opacity hover:opacity-80'
+                        onClick={() => setPreviewUrl(item.posterUrl as string)}
                       />
                     ) : (
                       <div className='h-14 w-10 rounded bg-muted' />
@@ -246,6 +252,19 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
           </Button>
         </div>
       </div>
+
+      {/* 图片预览弹窗 */}
+      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+        <DialogContent className='max-w-fit border-0 bg-transparent p-0 shadow-none [&>button]:-top-[42px] [&>button]:right-0 [&>button]:rounded-full [&>button]:bg-black/50 [&>button]:text-white [&>button]:opacity-100'>
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt='预览'
+              className='max-h-[80vh] max-w-[80vw] rounded-lg object-contain'
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
