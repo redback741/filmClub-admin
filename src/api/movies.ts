@@ -18,6 +18,7 @@ export type Movie = {
   updateTime?: string
   director?: string
   doubanRating?: string
+  overview?: string
   [key: string]: unknown
 }
 export async function getMovies(params: Record<string, unknown>) {

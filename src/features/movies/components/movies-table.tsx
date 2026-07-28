@@ -80,6 +80,7 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
             <TableRow>
               <TableHead className='w-[50px]'>编号</TableHead>
               <TableHead className='w-[180px]'>电影名称</TableHead>
+              <TableHead className='w-[180px]' >简介</TableHead>
               <TableHead className='w-[140px]'>导演</TableHead>
               <TableHead className='w-[220px]'>演员</TableHead>
               <TableHead className='w-[100px]'>豆瓣评分</TableHead>
@@ -102,6 +103,9 @@ export function MoviesTable({ data = [] }: { data: Movie[] }) {
                     <div className='truncate'>
                       {toCellText(item.movieName ?? item.name)}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className='truncate'>{toCellText(item.overview) || '-'}</div>
                   </TableCell>
                   <TableCell>
                     <div className='truncate'>{toCellText(item.director)}</div>

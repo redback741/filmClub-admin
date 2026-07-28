@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { type Movie, createMovie, updateMovie, searchTmdbMovies, getTmdbMovieDetail, getNowPlayingMovies, getUpcomingMovies, type TmdbMovieItem } from '@/api/movies'
 import { uploadImageToOss } from '@/api/upload'
 import { Search, Loader2 } from 'lucide-react'
@@ -48,7 +49,7 @@ const formSchema = z.object({
   actor: z.string().min(1, '请输入演员'),
   screeningTime: z.string().min(1, '请输入上映时间'),
   posterUrl: z.string().min(1, '请上传海报图片'),
-  shootingTime: z.string().min(1, '请输入拍摄时间'),
+  shootingTime: z.string(),
   doubanRating: z
     .string()
     .optional()
@@ -58,6 +59,7 @@ const formSchema = z.object({
       if (!s) return true
       return /^(10(\.0)?|[0-9](\.[0-9])?)$/.test(s)
     }, '请输入0-10分，最多1位小数'),
+  overview: z.string().optional(),
 })
 type MovieForm = z.infer<typeof formSchema>
 
@@ -243,6 +245,7 @@ export function MoviesActionDialog({
           posterUrl: typeof currentRow.posterUrl === 'string' ? currentRow.posterUrl : '',
           shootingTime: toDatetimeLocal(currentRow.shootingTime),
           doubanRating: typeof currentRow.doubanRating === 'string' ? currentRow.doubanRating : '',
+          overview: typeof currentRow.overview === 'string' ? currentRow.overview : '',
         }
       : {
           movieName: '',
@@ -252,6 +255,7 @@ export function MoviesActionDialog({
           posterUrl: '',
           shootingTime: '',
           doubanRating: '',
+          overview: '',
         },
   })
   const posterUrl = form.watch('posterUrl')
@@ -371,6 +375,9 @@ export function MoviesActionDialog({
       if (detail.vote_average != null) {
         form.setValue('doubanRating', String(detail.vote_average))
       }
+      if (detail.overview) {
+        form.setValue('overview', detail.overview)
+      }
 
       setTmdbDialogOpen(false)
       toast.success('已填入电影信息')
@@ -422,6 +429,7 @@ export function MoviesActionDialog({
       screeningTime: toBackendDateTime(values.screeningTime),
       shootingTime: toBackendDateTime(values.shootingTime),
       doubanRating: values.doubanRating?.trim() ? values.doubanRating.trim() : undefined,
+      overview: values.overview?.trim() ? values.overview.trim() : undefined,
     }
 
     toast.promise(isEdit ? updateMovie(payload, currentRow.id) : createMovie(payload), {
@@ -480,6 +488,25 @@ export function MoviesActionDialog({
                     <FormLabel>电影名称</FormLabel>
                     <FormControl>
                       <Input placeholder='请输入电影名称' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='overview'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>简介</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder='请输入电影简介'
+                        className='resize-none'
+                        rows={3}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
